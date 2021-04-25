@@ -1,0 +1,1 @@
+void row_split_spmm(const float *A_dense, const float *B_dense, int m, int k, int n);

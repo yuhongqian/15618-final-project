@@ -1,3 +1,7 @@
+"""
+Generates Big-Bird-like sparse matrix
+"""
+
 import sys
 import numpy as np
 

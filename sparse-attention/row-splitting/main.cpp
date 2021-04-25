@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <string>
-#include "cusprase_impl.h"
-#include "cycleTimer.h"
+#include "row_split.h"
+#include "../utils/cycleTimer.h"
 #define MAX_SEQ_LEN 512
 #define MAX_BATCH_SIZE 32
 
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     }
 
     double start = CycleTimer::currentSeconds();
-    cusparse_mmul(h_A_dense, h_B_dense, m, k, n);
+    row_split_spmm(h_A_dense, h_B_dense, m, k, n);
     double end = CycleTimer::currentSeconds();
     printf("cusparse:    %.4f ms\n", 1000.f * (end - start));
 

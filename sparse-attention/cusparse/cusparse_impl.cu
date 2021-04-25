@@ -6,8 +6,6 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 
-
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
     if (code != cudaSuccess)
@@ -67,7 +65,10 @@ inline void __cusparseSafeCall(cusparseStatus_t err, const char *file, const int
     }
 }
 
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 extern"C" void cusparseSafeCall(cusparseStatus_t err) { __cusparseSafeCall(err, __FILE__, __LINE__); }
+
 
 /********/
 /* MAIN */
