@@ -1,6 +1,6 @@
 EXECUTABLE := spmm
 LDFLAGS=-L/usr/local/depot/cuda-10.2/lib64/ -lcudart
-CU_FILES   := example.cu
+CU_FILES   := cusparse_impl.cu
 CU_DEPS    :=
 CC_FILES   := main.cpp
 LOGS	   := logs
@@ -26,7 +26,7 @@ LDFRAMEWORKS := $(addprefix -framework , $(FRAMEWORKS))
 
 NVCC=nvcc
 
-OBJS=$(OBJDIR)/main.o
+OBJS=$(OBJDIR)/main.o $(OBJDIR)/cusparse_impl.o
 
 # $(OBJDIR)/display.o $(OBJDIR)/benchmark.o $(OBJDIR)/refRenderer.o \
      $(OBJDIR)/cudaRenderer.o $(OBJDIR)/noise.o $(OBJDIR)/ppm.o $(OBJDIR)/sceneLoader.o
