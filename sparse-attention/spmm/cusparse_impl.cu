@@ -133,14 +133,6 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     int *h_nnzPerVectorB = (int *)malloc(n * sizeof(*h_nnzPerVectorB));
     gpuErrchk(cudaMemcpy(h_nnzPerVectorB, d_nnzPerVectorB, n * sizeof(*h_nnzPerVectorB), cudaMemcpyDeviceToHost));
 
-    printf("Number of nonzero elements in dense matrix A = %i\n\n", nnzA);
-    for (int i = 0; i < k; ++i) printf("Number of nonzero elements in row %i for matrix = %i \n", i, h_nnzPerVectorA[i]);
-    printf("\n");
-
-    printf("Number of nonzero elements in dense matrix B = %i\n\n", nnzB);
-    for (int i = 0; i < n; ++i) printf("Number of nonzero elements in row %i for matrix = %i \n", i, h_nnzPerVectorB[i]);
-    printf("\n");
-
     // --- Device side sparse matrix
     float *d_A;            gpuErrchk(cudaMalloc(&d_A, nnzA * sizeof(*d_A)));
     float *d_B;            gpuErrchk(cudaMalloc(&d_B, nnzB * sizeof(*d_B)));
@@ -168,24 +160,6 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     gpuErrchk(cudaMemcpy(h_B, d_B, nnzB * sizeof(*h_B), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_B_RowIndices, d_B_RowIndices, (k + 1) * sizeof(*h_B_RowIndices), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_B_ColIndices, d_B_ColIndices, nnzB * sizeof(*h_B_ColIndices), cudaMemcpyDeviceToHost));
-
-    printf("\nOriginal matrix A in CSR format\n\n");
-    for (int i = 0; i < nnzA; ++i) printf("A[%i] = %f ", i, h_A[i]); printf("\n");
-
-    printf("\nOriginal matrix B in CSR format\n\n");
-    for (int i = 0; i < nnzB; ++i) printf("B[%i] = %f ", i, h_B[i]); printf("\n");
-
-    printf("\n");
-    for (int i = 0; i < (m + 1); ++i) printf("h_A_RowIndices[%i] = %i \n", i, h_A_RowIndices[i]); printf("\n");
-
-    printf("\n");
-    for (int i = 0; i < (k + 1); ++i) printf("h_B_RowIndices[%i] = %i \n", i, h_B_RowIndices[i]); printf("\n");
-
-    printf("\n");
-    for (int i = 0; i < nnzA; ++i) printf("h_A_ColIndices[%i] = %i \n", i, h_A_ColIndices[i]);
-
-    printf("\n");
-    for (int i = 0; i < nnzB; ++i) printf("h_B_ColIndices[%i] = %i \n", i, h_B_ColIndices[i]);
 
     // --- Performing the matrix - matrix multiplication
     int baseC, nnzC = 0;
@@ -217,20 +191,6 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     gpuErrchk(cudaMemcpy(h_C_RowIndices, d_C_RowIndices, (m + 1) * sizeof(*h_C_RowIndices), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_C_ColIndices, d_C_ColIndices, nnzC * sizeof(*h_C_ColIndices), cudaMemcpyDeviceToHost));
 
-    printf("\nResult matrix C in CSR format\n\n");
-    for (int i = 0; i < nnzC; ++i) printf("C[%i] = %f ", i, h_C[i]); printf("\n");
-
-    printf("\n");
-    for (int i = 0; i < (m + 1); ++i) printf("h_C_RowIndices[%i] = %i \n", i, h_C_RowIndices[i]); printf("\n");
-
-    printf("\n");
-    for (int i = 0; i < nnzC; ++i) printf("h_C_ColIndices[%i] = %i \n", i, h_C_ColIndices[i]);
-
     gpuErrchk(cudaMemcpy(h_C_dense, d_C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost));
 
-//    for (int j = 0; j < N; j++) {
-//        for (int i = 0; i < N; i++)
-//            printf("%f \t", h_C_dense[i * N + j]);
-//        printf("\n");
-//    }
 }

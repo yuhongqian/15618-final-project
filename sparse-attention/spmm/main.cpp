@@ -7,6 +7,7 @@
 #include <getopt.h>
 #include <string>
 #include "cusprase_impl.h"
+#include "cycleTimer.h"
 #define MAX_SEQ_LEN 512
 #define MAX_BATCH_SIZE 32
 
@@ -50,7 +51,6 @@ int main(int argc, char** argv)
             scanf("%f%c", &h_A_dense[get_idx(i, j, k)], &c);
         }
     }
-    printf("hello1\n");
 
     scanf("%d %d", &k, &n);    // width_sparse == height_dense
     float *h_B_dense = (float *)malloc(k * n * sizeof(float));
@@ -59,8 +59,11 @@ int main(int argc, char** argv)
             scanf("%f%c", &h_B_dense[get_idx(i, j, n)], &c);
         }
     }
-    printf("hello2\n");
 
+    double start = CycleTimer::currentSeconds();
     cusparse_mmul(h_A_dense, h_B_dense, m, k, n);
+    double end = CycleTimer::currentSeconds();
+    printf("cusparse:    %.4f ms\n", 1000.f * (end - start));
+
     return 0;
 }
