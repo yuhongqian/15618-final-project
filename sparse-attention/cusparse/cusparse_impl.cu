@@ -5,6 +5,8 @@
 
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
+#include "../utils/cycleTimer.h"
+
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -182,9 +184,12 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     float *d_C;            gpuErrchk(cudaMalloc(&d_C, nnzC * sizeof(float)));
     float *h_C = (float *)malloc(nnzC * sizeof(*h_C));
     int *h_C_ColIndices = (int *)malloc(nnzC * sizeof(*h_C_ColIndices));
+    double start = CycleTimer::currentSeconds();
     cusparseSafeCall(cusparseScsrgemm(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k, descrB, nnzB,
                                       d_B, d_B_RowIndices, d_B_ColIndices, descrA, nnzA, d_A, d_A_RowIndices, d_A_ColIndices, descrC,
                                       d_C, d_C_RowIndices, d_C_ColIndices));
+    double end = CycleTimer::currentSeconds();
+    printf("cusparse matmul:    %.4f ms\n", 1000.f * (end - start));
 
     cusparseSafeCall(cusparseScsr2dense(handle, m, n, descrC, d_C, d_C_RowIndices, d_C_ColIndices, d_C_dense, lda));
 
