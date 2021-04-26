@@ -28,11 +28,6 @@ void print_arr(float *arr, int n) {
     }
 }
 
-// TODO: generate csr format sparse input
-void get_matrix_from_stdin(float **matrix) {
-
-}
-
 // column-major for cusparse
 int get_idx(int row, int col, int height) {
     return col * height + row;

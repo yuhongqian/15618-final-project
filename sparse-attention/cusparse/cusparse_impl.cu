@@ -103,49 +103,36 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     gpuErrchk(cudaMemcpy(d_A_dense, h_A_dense, m * k * sizeof(*d_A_dense), cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy(d_B_dense, h_B_dense, k * n * sizeof(*d_B_dense), cudaMemcpyHostToDevice));
 
-    // --- Descriptor for sparse matrix A
-    cusparseMatDescr_t descrA;
+    // --- Descriptors for sparse matrices
+    cusparseMatDescr_t descrA, descrB, descrC;
     cusparseSafeCall(cusparseCreateMatDescr(&descrA));
-    cusparseSafeCall(cusparseSetMatType     (descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
-    cusparseSafeCall(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE));
-
-    // --- Descriptor for sparse matrix B
-    cusparseMatDescr_t descrB;
     cusparseSafeCall(cusparseCreateMatDescr(&descrB));
-    cusparseSafeCall(cusparseSetMatType     (descrB, CUSPARSE_MATRIX_TYPE_GENERAL));
-    cusparseSafeCall(cusparseSetMatIndexBase(descrB, CUSPARSE_INDEX_BASE_ONE));
-
-    // --- Descriptor for sparse matrix C
-    cusparseMatDescr_t descrC;
     cusparseSafeCall(cusparseCreateMatDescr(&descrC));
-    cusparseSafeCall(cusparseSetMatType     (descrC, CUSPARSE_MATRIX_TYPE_GENERAL));
-    cusparseSafeCall(cusparseSetMatIndexBase(descrC, CUSPARSE_INDEX_BASE_ONE));
 
     int nnzA = 0;                           // --- Number of nonzero elements in dense matrix A
     int nnzB = 0;                           // --- Number of nonzero elements in dense matrix B
 
     const int lda = m;                      // --- Leading dimension of dense matrix
+    const int ldb = k;                      // --- Leading dimension of dense matrix
 
-    // --- Device side number of nonzero elements per row of matrix A
+    // --- Device side number of nonzero elements per row
     // TODO: is the size of d_nnzPerVectorA correct?
-    int *d_nnzPerVectorA;   gpuErrchk(cudaMalloc(&d_nnzPerVectorA, k * sizeof(*d_nnzPerVectorA)));
+    int *d_nnzPerVectorA, *d_nnzPerVectorB;
+    gpuErrchk(cudaMalloc(&d_nnzPerVectorA, m * sizeof(int)));
+    gpuErrchk(cudaMalloc(&d_nnzPerVectorB, k * sizeof(int)));
     cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, m, k, descrA, d_A_dense, lda, d_nnzPerVectorA, &nnzA));
+    cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, k, n, descrB, d_B_dense, ldb, d_nnzPerVectorB, &nnzB));
 
-    // --- Device side number of nonzero elements per row of matrix B
-    int *d_nnzPerVectorB;   gpuErrchk(cudaMalloc(&d_nnzPerVectorB, n * sizeof(*d_nnzPerVectorB)));
-    cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, k, n, descrB, d_B_dense, lda, d_nnzPerVectorB, &nnzB));
-
-    // --- Host side number of nonzero elements per row of matrix A
-    int *h_nnzPerVectorA = (int *)malloc(k * sizeof(*h_nnzPerVectorA));
+    // --- Host side number of nonzero elements per row
+    int *h_nnzPerVectorA = (int *)malloc(m * sizeof(*h_nnzPerVectorA));
+    int *h_nnzPerVectorB = (int *)malloc(k * sizeof(*h_nnzPerVectorB));
     gpuErrchk(cudaMemcpy(h_nnzPerVectorA, d_nnzPerVectorA, k * sizeof(*h_nnzPerVectorA), cudaMemcpyDeviceToHost));
-
-    // --- Host side number of nonzero elements per row of matrix B
-    int *h_nnzPerVectorB = (int *)malloc(n * sizeof(*h_nnzPerVectorB));
     gpuErrchk(cudaMemcpy(h_nnzPerVectorB, d_nnzPerVectorB, n * sizeof(*h_nnzPerVectorB), cudaMemcpyDeviceToHost));
 
     // --- Device side sparse matrix
-    float *d_A;            gpuErrchk(cudaMalloc(&d_A, nnzA * sizeof(float)));
-    float *d_B;            gpuErrchk(cudaMalloc(&d_B, nnzB * sizeof(float)));
+    float *d_A, *d_B;
+    gpuErrchk(cudaMalloc(&d_A, nnzA * sizeof(float)));
+    gpuErrchk(cudaMalloc(&d_B, nnzB * sizeof(float)));
 
     int *d_A_RowIndices;    gpuErrchk(cudaMalloc(&d_A_RowIndices, (m + 1) * sizeof(int)));
     int *d_B_RowIndices;    gpuErrchk(cudaMalloc(&d_B_RowIndices, (k + 1) * sizeof(int)));
@@ -154,22 +141,7 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     int *d_B_ColIndices;    gpuErrchk(cudaMalloc(&d_B_ColIndices, nnzB * sizeof(int)));
 
     cusparseSafeCall(cusparseSdense2csr(handle, m, k, descrA, d_A_dense, lda, d_nnzPerVectorA, d_A, d_A_RowIndices, d_A_ColIndices));
-    cusparseSafeCall(cusparseSdense2csr(handle, k, n, descrB, d_B_dense, lda, d_nnzPerVectorB, d_B, d_B_RowIndices, d_B_ColIndices));
-
-    // --- Host side sparse matrices
-    float *h_A = (float *)malloc(nnzA * sizeof(float));
-    float *h_B = (float *)malloc(nnzB * sizeof(float));
-    int *h_A_RowIndices = (int *)malloc((m + 1) * sizeof(int));
-    int *h_A_ColIndices = (int *)malloc(nnzA * sizeof(int));
-    int *h_B_RowIndices = (int *)malloc((k + 1) * sizeof(int));
-    int *h_B_ColIndices = (int *)malloc(nnzB * sizeof(int));
-    int *h_C_RowIndices = (int *)malloc((m + 1) * sizeof(int));
-    gpuErrchk(cudaMemcpy(h_A, d_A, nnzA * sizeof(float), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_A_RowIndices, d_A_RowIndices, (m + 1) * sizeof(*h_A_RowIndices), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_A_ColIndices, d_A_ColIndices, nnzA * sizeof(*h_A_ColIndices), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_B, d_B, nnzB * sizeof(*h_B), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_B_RowIndices, d_B_RowIndices, (k + 1) * sizeof(*h_B_RowIndices), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_B_ColIndices, d_B_ColIndices, nnzB * sizeof(*h_B_ColIndices), cudaMemcpyDeviceToHost));
+    cusparseSafeCall(cusparseSdense2csr(handle, k, n, descrB, d_B_dense, ldb, d_nnzPerVectorB, d_B, d_B_RowIndices, d_B_ColIndices));
 
     // --- Performing the matrix - matrix multiplication
     int baseC, nnzC = 0;
@@ -178,9 +150,9 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
 
     cusparseSafeCall(cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST));
 
-    cusparseSafeCall(cusparseXcsrgemmNnz(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k, descrB, nnzB,
-                                         d_B_RowIndices, d_B_ColIndices, descrA, nnzA, d_A_RowIndices, d_A_ColIndices, descrC, d_C_RowIndices,
-                                         nnzTotalDevHostPtr));
+    cusparseSafeCall(cusparseXcsrgemmNnz(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                         m, n, k, descrA, nnzA, d_A_RowIndices, d_A_ColIndices, descrB, nnzB,
+                                         d_B_RowIndices, d_B_ColIndices, descrC, d_C_RowIndices, nnzTotalDevHostPtr));
     if (NULL != nnzTotalDevHostPtr) nnzC = *nnzTotalDevHostPtr;
     else {
         gpuErrchk(cudaMemcpy(&nnzC,  d_C_RowIndices + m, sizeof(int), cudaMemcpyDeviceToHost));
@@ -189,22 +161,20 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     }
     int *d_C_ColIndices;    gpuErrchk(cudaMalloc(&d_C_ColIndices, nnzC * sizeof(int)));
     float *d_C;            gpuErrchk(cudaMalloc(&d_C, nnzC * sizeof(float)));
-    float *h_C = (float *)malloc(nnzC * sizeof(*h_C));
-    int *h_C_ColIndices = (int *)malloc(nnzC * sizeof(*h_C_ColIndices));
+
     double start = CycleTimer::currentSeconds();
-    cusparseScsrgemm(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k, descrB, nnzB,
-                     d_B, d_B_RowIndices, d_B_ColIndices, descrA, nnzA, d_A, d_A_RowIndices, d_A_ColIndices, descrC,
-                     d_C, d_C_RowIndices, d_C_ColIndices);
+    cusparseScsrgemm(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k,
+                     descrA, nnzA, d_A, d_A_RowIndices, d_A_ColIndices,
+                     descrB, nnzB, d_B, d_B_RowIndices, d_B_ColIndices,
+                     descrC, d_C, d_C_RowIndices, d_C_ColIndices);
     double end = CycleTimer::currentSeconds();
     printf("cusparse matmul:    %.4f ms\n", 1000.f * (end - start));
 
     cusparseSafeCall(cusparseScsr2dense(handle, m, n, descrC, d_C, d_C_RowIndices, d_C_ColIndices, d_C_dense, lda));
 
-    gpuErrchk(cudaMemcpy(h_C ,           d_C,            nnzC * sizeof(*h_C), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_C_RowIndices, d_C_RowIndices, (m + 1) * sizeof(*h_C_RowIndices), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaMemcpy(h_C_ColIndices, d_C_ColIndices, nnzC * sizeof(*h_C_ColIndices), cudaMemcpyDeviceToHost));
-
     gpuErrchk(cudaMemcpy(h_C_dense, d_C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost));
+    // cusparse return col-major result, while we implemented row-splitting to return row-major results
+    // this is unimportant regarding performance, since we can trivially change row-splitting to return in col-major.
     print_a_row(h_C_dense, 0, n);
 
 }

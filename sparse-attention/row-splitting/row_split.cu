@@ -163,7 +163,7 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     int nnzA = 0;
     int *nnzPerVectorA;
     const int lda = m;
-    gpuErrchk(cudaMalloc(&nnzPerVectorA, k * sizeof(*nnzPerVectorA)));
+    gpuErrchk(cudaMalloc(&nnzPerVectorA, m * sizeof(*nnzPerVectorA)));
     cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, m, k, descrA, A_dense, lda, nnzPerVectorA, &nnzA));
 
     // declare CSR data

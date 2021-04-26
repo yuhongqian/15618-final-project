@@ -28,11 +28,6 @@ void print_arr(float *arr, int n) {
     }
 }
 
-// TODO: generate csr format sparse input
-void get_matrix_from_stdin(float **matrix) {
-
-}
-
 // column-major for cusparse
 int get_idx(int row, int col, int height) {
     return col * height + row;
@@ -66,5 +61,7 @@ int main(int argc, char** argv)
     double end = CycleTimer::currentSeconds();
     printf("cusparse:    %.4f ms\n", 1000.f * (end - start));
 
+    free(h_A_dense);
+    free(h_B_dense);
     return 0;
 }
