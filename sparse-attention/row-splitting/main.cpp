@@ -65,5 +65,7 @@ int main(int argc, char** argv)
     double end = CycleTimer::currentSeconds();
     printf("row-split:    %.4f ms\n", 1000.f * (end - start));
 
+    free(h_A_dense);
+    free(h_B_dense);
     return 0;
 }
