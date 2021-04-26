@@ -76,6 +76,13 @@ extern"C" void cusparseSafeCall(cusparseStatus_t err) { __cusparseSafeCall(err, 
 /* MAIN */
 /********/
 
+void print_a_row(float *dense, int row, int width) {
+    printf("row = %d, width = %d\n", row, width);
+    for (int i = 0; i < width; i++) {
+        printf("%f ", dense[row * width + i]);
+    }
+    printf("\n");
+}
 
 void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k, int n)
 {
@@ -198,5 +205,6 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     gpuErrchk(cudaMemcpy(h_C_ColIndices, d_C_ColIndices, nnzC * sizeof(*h_C_ColIndices), cudaMemcpyDeviceToHost));
 
     gpuErrchk(cudaMemcpy(h_C_dense, d_C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost));
+    print_a_row(h_C_dense, 0, n);
 
 }

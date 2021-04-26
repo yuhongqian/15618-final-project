@@ -122,7 +122,7 @@ __global__ void device_spmm(int m, int k, int n, float *A_data, int *A_row_ptrs,
     for (int i = 0; i < row_nnz; i++) {
         // Note A_dense and B_dense are col-major
 //        printf("%f ", curr_row[i]);
-        float elem = B_dense[device_get_idx_col(curr_B_row_idxs[i], n_idx, n)];
+        float elem = B_dense[device_get_idx_col(curr_B_row_idxs[i], n_idx, k)];
 //        printf("A elem = %f, B_elem = %f\n", curr_row[i], elem);
         res += curr_row[i] * elem;
     }
@@ -182,8 +182,8 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     // invoke kernel
     dim3 blockDim(32);
     // TODO: reduce grid size using nnz
-    printf("blockDim.x = %d, blockDim.y = %d\n", blockDim.x, blockDim.y);
-    printf("m = %d, n = %d\n", m, n);
+//    printf("blockDim.x = %d, blockDim.y = %d\n", blockDim.x, blockDim.y);
+//    printf("m = %d, n = %d\n", m, n);
     dim3 gridDim(get_grid_len(n, blockDim.x), get_grid_len(m, blockDim.y));
     double start = CycleTimer::currentSeconds();
     device_spmm<<<gridDim, blockDim>>>(m, k, n, A_data, A_row_ptrs, A_col_indices, B_dense, C_dense);
@@ -195,7 +195,9 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     cudaMemcpy(h_C_dense, C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost);
 
     print_a_row(h_C_dense, 0, n);
-    print_a_row(h_C_dense, 15, n);
+    print_a_row(h_C_dense, 1, n);
+    print_a_row(h_C_dense, 2, n);
+//    print_a_row(h_C_dense, 15, n);
 
     free(h_C_dense);
     cudaFree(A_dense);
