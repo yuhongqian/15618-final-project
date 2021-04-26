@@ -96,34 +96,28 @@ __global__ void device_spmm(int m, int k, int n, float *A_data, int *A_row_ptrs,
                             float *B_dense, float *C_dense) {
     int m_idx = blockIdx.y;
     int n_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (m_idx > m || n_idx > n) return;
+    if (m_idx >= m) return;
 
     // TODO: reduce shared memory size
     // Load the corresponding row from A into shared mem
     __shared__ float curr_row[MAX_SEQ_LEN];
     __shared__ int curr_B_row_idxs[MAX_SEQ_LEN];
 
-    // n < k, so each thread may be responsible for loading multiple row elements from A into shared mem
     int row_start = A_row_ptrs[m_idx];
     int row_end = A_row_ptrs[m_idx + 1];
     int row_nnz = row_end - row_start;
-    for (int i = n_idx; i < row_nnz; i += blockDim.x * gridDim.x) {
+    for (int i = threadIdx.x; i < row_nnz; i += blockDim.x) {
         curr_row[i] = A_data[row_start + i];
         curr_B_row_idxs[i] = A_col_indices[row_start + i];
     }
     __syncthreads();
-//    if (m_idx == 10 && n_idx == 0) {
-//        print_arr(curr_row, row_nnz);
-//        print_int_arr(curr_col_idxs, row_nnz);
-//    }
 
+    if (n_idx >= n) return;
     // Each thread loops through the corresponding col in B
     float res = 0;
     for (int i = 0; i < row_nnz; i++) {
         // Note A_dense and B_dense are col-major
-//        printf("%f ", curr_row[i]);
         float elem = B_dense[device_get_idx_col(curr_B_row_idxs[i], n_idx, k)];
-//        printf("A elem = %f, B_elem = %f\n", curr_row[i], elem);
         res += curr_row[i] * elem;
     }
     C_dense[device_get_idx(m_idx, n_idx, n)] = res;
@@ -147,9 +141,9 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     float *A_dense, *B_dense, *C_dense;
     gpuErrchk(cudaMalloc(&A_dense, m * k * sizeof(float)));
     gpuErrchk(cudaMalloc(&B_dense, k * n * sizeof(float)));
+    gpuErrchk(cudaMalloc(&C_dense, m * n * sizeof(float)));
     gpuErrchk(cudaMemcpy(A_dense, h_A_dense, m * k * sizeof(float), cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy(B_dense, h_B_dense, k * n * sizeof(float), cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMalloc(&C_dense, m * n * sizeof(float)));
     // --- Initialize cuSPARSE
 
     cusparseHandle_t handle;
@@ -163,17 +157,17 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     int nnzA = 0;
     int *nnzPerVectorA;
     const int lda = m;
-    gpuErrchk(cudaMalloc(&nnzPerVectorA, m * sizeof(*nnzPerVectorA)));
+    gpuErrchk(cudaMalloc(&nnzPerVectorA, m * sizeof(int)));
     cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, m, k, descrA, A_dense, lda, nnzPerVectorA, &nnzA));
-
+    printf("nnzA = %d\n", nnzA);
     // declare CSR data
     float *A_data;
-    gpuErrchk(cudaMalloc(&A_data, nnzA * sizeof(*A_data)));
+    gpuErrchk(cudaMalloc(&A_data, nnzA * sizeof(float)));
 
     // declare CSR row-pointers & col indices
     int *A_row_ptrs, *A_col_indices;
-    gpuErrchk(cudaMalloc(&A_row_ptrs, (m + 1) * sizeof(*A_row_ptrs)));
-    gpuErrchk(cudaMalloc(&A_col_indices, nnzA * sizeof(*A_col_indices)));
+    gpuErrchk(cudaMalloc(&A_row_ptrs, (m + 1) * sizeof(int)));
+    gpuErrchk(cudaMalloc(&A_col_indices, nnzA * sizeof(int)));
 
     // fill CSR arrays
     cusparseSafeCall(cusparseSdense2csr(handle, m, k, descrA, A_dense, lda, nnzPerVectorA, A_data, A_row_ptrs,
@@ -182,9 +176,10 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     // invoke kernel
     dim3 blockDim(32);
     // TODO: reduce grid size using nnz
-//    printf("blockDim.x = %d, blockDim.y = %d\n", blockDim.x, blockDim.y);
-//    printf("m = %d, n = %d\n", m, n);
+
     dim3 gridDim(get_grid_len(n, blockDim.x), get_grid_len(m, blockDim.y));
+//    printf("blockDim.x = %d, blockDim.y = %d, gridDim.x = %d, gridDim.y = %d\n", blockDim.x, blockDim.y, gridDim.x, gridDim.y);
+//    printf("m = %d, n = %d\n", m, n);
     double start = CycleTimer::currentSeconds();
     device_spmm<<<gridDim, blockDim>>>(m, k, n, A_data, A_row_ptrs, A_col_indices, B_dense, C_dense);
     gpuErrchk(cudaDeviceSynchronize());
@@ -197,7 +192,6 @@ void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k
     print_a_row(h_C_dense, 0, n);
     print_a_row(h_C_dense, 1, n);
     print_a_row(h_C_dense, 2, n);
-//    print_a_row(h_C_dense, 15, n);
 
     free(h_C_dense);
     cudaFree(A_dense);
