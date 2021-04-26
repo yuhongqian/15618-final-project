@@ -8,8 +8,8 @@
 #include <string>
 #include "cusprase_impl.h"
 #include "../utils/cycleTimer.h"
-#define MAX_SEQ_LEN 512
-#define MAX_BATCH_SIZE 32
+//#define MAX_SEQ_LEN 512
+//#define MAX_BATCH_SIZE 32
 
 void usage(const char* progname) {
     printf("Usage: %s [options] scenename\n", progname);
@@ -33,8 +33,9 @@ void get_matrix_from_stdin(float **matrix) {
 
 }
 
-int get_idx(int row, int col, int width) {
-    return row * width + col;
+// column-major for cusparse
+int get_idx(int row, int col, int height) {
+    return col * height + row;
 }
 
 // res(m, n) = sparse(m, k) * dense(k, n)
@@ -48,7 +49,7 @@ int main(int argc, char** argv)
     float *h_A_dense = (float *)malloc(m * k * sizeof(float));
     for(i = 0; i < m; i++) {
         for(j = 0; j < k; j++) {
-            scanf("%f%c", &h_A_dense[get_idx(i, j, k)], &c);
+            scanf("%f%c", &h_A_dense[get_idx(i, j, m)], &c);
         }
     }
 
@@ -56,7 +57,7 @@ int main(int argc, char** argv)
     float *h_B_dense = (float *)malloc(k * n * sizeof(float));
     for(i = 0; i < k; i++) {
         for(j = 0; j < n; j++) {
-            scanf("%f%c", &h_B_dense[get_idx(i, j, n)], &c);
+            scanf("%f%c", &h_B_dense[get_idx(i, j, k)], &c);
         }
     }
 

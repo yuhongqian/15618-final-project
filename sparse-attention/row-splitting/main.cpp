@@ -33,8 +33,9 @@ void get_matrix_from_stdin(float **matrix) {
 
 }
 
-int get_idx(int row, int col, int width) {
-    return row * width + col;
+// column-major for cusparse
+int get_idx(int row, int col, int height) {
+    return col * height + row;
 }
 
 // res(m, n) = sparse(m, k) * dense(k, n)
@@ -48,7 +49,7 @@ int main(int argc, char** argv)
     float *h_A_dense = (float *)malloc(m * k * sizeof(float));
     for(i = 0; i < m; i++) {
         for(j = 0; j < k; j++) {
-            scanf("%f%c", &h_A_dense[get_idx(i, j, k)], &c);
+            scanf("%f%c", &h_A_dense[get_idx(i, j, m)], &c);
         }
     }
 
@@ -56,14 +57,13 @@ int main(int argc, char** argv)
     float *h_B_dense = (float *)malloc(k * n * sizeof(float));
     for(i = 0; i < k; i++) {
         for(j = 0; j < n; j++) {
-            scanf("%f%c", &h_B_dense[get_idx(i, j, n)], &c);
+            scanf("%f%c", &h_B_dense[get_idx(i, j, k)], &c);
         }
     }
-
     double start = CycleTimer::currentSeconds();
     row_split_spmm(h_A_dense, h_B_dense, m, k, n);
     double end = CycleTimer::currentSeconds();
-    printf("cusparse:    %.4f ms\n", 1000.f * (end - start));
+    printf("row-split:    %.4f ms\n", 1000.f * (end - start));
 
     return 0;
 }

@@ -38,7 +38,8 @@ def write_single_matrix(data, h, w, f):
         f.write(' '.join(row) + "\n")
 
 
-def write_matrix(seq_len, output_file, batch_size=32, r_size=2, w_size=3, g_size=2):
+def write_matrix(seq_len, batch_size=32, r_size=2, w_size=3, g_size=2):
+    output_file = "data/seqlen{}_bs{}_r{}_w{}_g{}".format(seq_len, batch_size, r_size, w_size, g_size)
     attention = np.logical_or(np.logical_or(random_attention(seq_len, r_size), window_attention(seq_len, w_size)),
                               global_attention(seq_len, g_size))
     data = np.random.randn(seq_len, seq_len)
@@ -50,9 +51,7 @@ def write_matrix(seq_len, output_file, batch_size=32, r_size=2, w_size=3, g_size
     fp.close()
 
 if __name__ == '__main__':
-    seq_len = int(sys.argv[1])
-    output_file = sys.argv[2]
-    write_matrix(seq_len, output_file)
+    write_matrix(seq_len=128, batch_size=32, r_size=2, w_size=2, g_size=2)
 
 
 

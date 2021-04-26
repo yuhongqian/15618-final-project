@@ -137,27 +137,27 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     gpuErrchk(cudaMemcpy(h_nnzPerVectorB, d_nnzPerVectorB, n * sizeof(*h_nnzPerVectorB), cudaMemcpyDeviceToHost));
 
     // --- Device side sparse matrix
-    float *d_A;            gpuErrchk(cudaMalloc(&d_A, nnzA * sizeof(*d_A)));
-    float *d_B;            gpuErrchk(cudaMalloc(&d_B, nnzB * sizeof(*d_B)));
+    float *d_A;            gpuErrchk(cudaMalloc(&d_A, nnzA * sizeof(float)));
+    float *d_B;            gpuErrchk(cudaMalloc(&d_B, nnzB * sizeof(float)));
 
-    int *d_A_RowIndices;    gpuErrchk(cudaMalloc(&d_A_RowIndices, (m + 1) * sizeof(*d_A_RowIndices)));
-    int *d_B_RowIndices;    gpuErrchk(cudaMalloc(&d_B_RowIndices, (k + 1) * sizeof(*d_B_RowIndices)));
-    int *d_C_RowIndices;    gpuErrchk(cudaMalloc(&d_C_RowIndices, (m + 1) * sizeof(*d_C_RowIndices)));
-    int *d_A_ColIndices;    gpuErrchk(cudaMalloc(&d_A_ColIndices, nnzA * sizeof(*d_A_ColIndices)));
-    int *d_B_ColIndices;    gpuErrchk(cudaMalloc(&d_B_ColIndices, nnzB * sizeof(*d_B_ColIndices)));
+    int *d_A_RowIndices;    gpuErrchk(cudaMalloc(&d_A_RowIndices, (m + 1) * sizeof(int)));
+    int *d_B_RowIndices;    gpuErrchk(cudaMalloc(&d_B_RowIndices, (k + 1) * sizeof(int)));
+    int *d_C_RowIndices;    gpuErrchk(cudaMalloc(&d_C_RowIndices, (m + 1) * sizeof(int)));
+    int *d_A_ColIndices;    gpuErrchk(cudaMalloc(&d_A_ColIndices, nnzA * sizeof(int)));
+    int *d_B_ColIndices;    gpuErrchk(cudaMalloc(&d_B_ColIndices, nnzB * sizeof(int)));
 
     cusparseSafeCall(cusparseSdense2csr(handle, m, k, descrA, d_A_dense, lda, d_nnzPerVectorA, d_A, d_A_RowIndices, d_A_ColIndices));
     cusparseSafeCall(cusparseSdense2csr(handle, k, n, descrB, d_B_dense, lda, d_nnzPerVectorB, d_B, d_B_RowIndices, d_B_ColIndices));
 
     // --- Host side sparse matrices
-    float *h_A = (float *)malloc(nnzA * sizeof(*h_A));
-    float *h_B = (float *)malloc(nnzB * sizeof(*h_B));
-    int *h_A_RowIndices = (int *)malloc((m + 1) * sizeof(*h_A_RowIndices));
-    int *h_A_ColIndices = (int *)malloc(nnzA * sizeof(*h_A_ColIndices));
-    int *h_B_RowIndices = (int *)malloc((k + 1) * sizeof(*h_B_RowIndices));
-    int *h_B_ColIndices = (int *)malloc(nnzB * sizeof(*h_B_ColIndices));
-    int *h_C_RowIndices = (int *)malloc((m + 1) * sizeof(*h_C_RowIndices));
-    gpuErrchk(cudaMemcpy(h_A, d_A, nnzA * sizeof(*h_A), cudaMemcpyDeviceToHost));
+    float *h_A = (float *)malloc(nnzA * sizeof(float));
+    float *h_B = (float *)malloc(nnzB * sizeof(float));
+    int *h_A_RowIndices = (int *)malloc((m + 1) * sizeof(int));
+    int *h_A_ColIndices = (int *)malloc(nnzA * sizeof(int));
+    int *h_B_RowIndices = (int *)malloc((k + 1) * sizeof(int));
+    int *h_B_ColIndices = (int *)malloc(nnzB * sizeof(int));
+    int *h_C_RowIndices = (int *)malloc((m + 1) * sizeof(int));
+    gpuErrchk(cudaMemcpy(h_A, d_A, nnzA * sizeof(float), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_A_RowIndices, d_A_RowIndices, (m + 1) * sizeof(*h_A_RowIndices), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_A_ColIndices, d_A_ColIndices, nnzA * sizeof(*h_A_ColIndices), cudaMemcpyDeviceToHost));
     gpuErrchk(cudaMemcpy(h_B, d_B, nnzB * sizeof(*h_B), cudaMemcpyDeviceToHost));
@@ -185,9 +185,9 @@ void cusparse_mmul(const float *h_A_dense, const float *h_B_dense, int m, int k,
     float *h_C = (float *)malloc(nnzC * sizeof(*h_C));
     int *h_C_ColIndices = (int *)malloc(nnzC * sizeof(*h_C_ColIndices));
     double start = CycleTimer::currentSeconds();
-    cusparseSafeCall(cusparseScsrgemm(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k, descrB, nnzB,
-                                      d_B, d_B_RowIndices, d_B_ColIndices, descrA, nnzA, d_A, d_A_RowIndices, d_A_ColIndices, descrC,
-                                      d_C, d_C_RowIndices, d_C_ColIndices));
+    cusparseScsrgemm(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, m, n, k, descrB, nnzB,
+                     d_B, d_B_RowIndices, d_B_ColIndices, descrA, nnzA, d_A, d_A_RowIndices, d_A_ColIndices, descrC,
+                     d_C, d_C_RowIndices, d_C_ColIndices);
     double end = CycleTimer::currentSeconds();
     printf("cusparse matmul:    %.4f ms\n", 1000.f * (end - start));
 
