@@ -1,13 +1,18 @@
+#include <torch/extension.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
 #include <assert.h>
-#include <cuda_runtime.h>
 #include <cusparse_v2.h>
-#include "../utils/cycleTimer.h"
+#include "../../utils/cycleTimer.h"
 
 #define DEVICE 0
 #define MAX_SEQ_LEN 512
+
+using namespace std;
 
 static const char *_cusparseGetErrorEnum(cusparseStatus_t error)
 {
@@ -135,66 +140,67 @@ void print_a_row(float *dense, int row, int width) {
     printf("\n");
 }
 
-void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k, int n) {
-    int val;
-    cudaDeviceGetAttribute(&val, cudaDevAttrPageableMemoryAccess, DEVICE);
-    float *A_dense, *B_dense, *C_dense;
-    gpuErrchk(cudaMalloc(&A_dense, m * k * sizeof(float)));
-    gpuErrchk(cudaMalloc(&B_dense, k * n * sizeof(float)));
-    gpuErrchk(cudaMalloc(&C_dense, m * n * sizeof(float)));
-    gpuErrchk(cudaMemcpy(A_dense, h_A_dense, m * k * sizeof(float), cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMemcpy(B_dense, h_B_dense, k * n * sizeof(float), cudaMemcpyHostToDevice));
-    // --- Initialize cuSPARSE
+//void row_split_spmm(const float *h_A_dense, const float *h_B_dense, int m, int k, int n) {
+void row_split_spmm(torch::Tensor *h_A_dense, torch::Tensor *h_B_dense, torch::Tensor *h_C_dense, int m, int k, int n) {
 
-    cusparseHandle_t handle;
-    cusparseSafeCall(cusparseCreate(&handle));
-    // Initialize matrix descriptors
-    cusparseMatDescr_t descrA;
-    cusparseSafeCall(cusparseCreateMatDescr(&descrA));
-    cusparseSafeCall(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO));
+        int val;
+        cudaDeviceGetAttribute(&val, cudaDevAttrPageableMemoryAccess, DEVICE);
+        float *A_dense = h_A_dense.data_ptr();
+        float *B_dense = h_B_dense.data_ptr();
+        float *C_dense = h_C_dense.data_ptr();
+//        gpuErrchk(cudaMalloc(&A_dense, m * k * sizeof(float)));
+//        gpuErrchk(cudaMalloc(&B_dense, k * n * sizeof(float)));
+//        gpuErrchk(cudaMalloc(&C_dense, m * n * sizeof(float)));
+//        gpuErrchk(cudaMemcpy(A_dense, h_A_dense, m * k * sizeof(float), cudaMemcpyHostToDevice));
+//        gpuErrchk(cudaMemcpy(B_dense, h_B_dense, k * n * sizeof(float), cudaMemcpyHostToDevice));
+        // --- Initialize cuSPARSE
 
-    // Get nnz's
-    int nnzA = 0;
-    int *nnzPerVectorA;
-    const int lda = m;
-    gpuErrchk(cudaMalloc(&nnzPerVectorA, m * sizeof(int)));
-    cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, m, k, descrA, A_dense, lda, nnzPerVectorA, &nnzA));
-    printf("nnzA = %d\n", nnzA);
-    // declare CSR data
-    float *A_data;
-    gpuErrchk(cudaMalloc(&A_data, nnzA * sizeof(float)));
+        cusparseHandle_t handle;
+        cusparseSafeCall(cusparseCreate(&handle));
+        // Initialize matrix descriptors
+        cusparseMatDescr_t descrA;
+        cusparseSafeCall(cusparseCreateMatDescr(&descrA));
+        cusparseSafeCall(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ZERO));
 
-    // declare CSR row-pointers & col indices
-    int *A_row_ptrs, *A_col_indices;
-    gpuErrchk(cudaMalloc(&A_row_ptrs, (m + 1) * sizeof(int)));
-    gpuErrchk(cudaMalloc(&A_col_indices, nnzA * sizeof(int)));
+        // Get nnz's
+        int nnzA = 0;
+        int *nnzPerVectorA;
+        const int lda = m;
+        gpuErrchk(cudaMalloc(&nnzPerVectorA, m * sizeof(int)));
+        cusparseSafeCall(cusparseSnnz(handle, CUSPARSE_DIRECTION_ROW, m, k, descrA, A_dense, lda, nnzPerVectorA, &nnzA));
+        printf("nnzA = %d\n", nnzA);
+        // declare CSR data
+        float *A_data;
+        gpuErrchk(cudaMalloc(&A_data, nnzA * sizeof(float)));
 
-    // fill CSR arrays
-    cusparseSafeCall(cusparseSdense2csr(handle, m, k, descrA, A_dense, lda, nnzPerVectorA, A_data, A_row_ptrs,
-                                        A_col_indices));
+        // declare CSR row-pointers & col indices
+        int *A_row_ptrs, *A_col_indices;
+        gpuErrchk(cudaMalloc(&A_row_ptrs, (m + 1) * sizeof(int)));
+        gpuErrchk(cudaMalloc(&A_col_indices, nnzA * sizeof(int)));
 
-    // invoke kernel
-    dim3 blockDim(32);
-    // TODO: reduce grid size using nnz
+        // fill CSR arrays
+        cusparseSafeCall(cusparseSdense2csr(handle, m, k, descrA, A_dense, lda, nnzPerVectorA, A_data, A_row_ptrs,
+                                            A_col_indices));
 
-    dim3 gridDim(get_grid_len(n, blockDim.x), get_grid_len(m, blockDim.y));
-//    printf("blockDim.x = %d, blockDim.y = %d, gridDim.x = %d, gridDim.y = %d\n", blockDim.x, blockDim.y, gridDim.x, gridDim.y);
-//    printf("m = %d, n = %d\n", m, n);
-    double start = CycleTimer::currentSeconds();
-    device_spmm<<<gridDim, blockDim>>>(m, k, n, A_data, A_row_ptrs, A_col_indices, B_dense, C_dense);
-    gpuErrchk(cudaDeviceSynchronize());
-    double end = CycleTimer::currentSeconds();
-    printf("row-spliting matmul:    %.4f ms\n", 1000.f * (end - start));
+        // invoke kernel
+        dim3 blockDim(32);
+        // TODO: reduce grid size using nnz
 
-    float *h_C_dense = (float*)malloc(m * n * sizeof(float));
-    cudaMemcpy(h_C_dense, C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost);
+        dim3 gridDim(get_grid_len(n, blockDim.x), get_grid_len(m, blockDim.y));
 
-    print_a_row(h_C_dense, 0, n);
-    print_a_row(h_C_dense, 1, n);
-    print_a_row(h_C_dense, 2, n);
+        double start = CycleTimer::currentSeconds();
+        device_spmm<<<gridDim, blockDim>>>(m, k, n, A_data, A_row_ptrs, A_col_indices, B_dense, C_dense);
+        gpuErrchk(cudaDeviceSynchronize());
+        double end = CycleTimer::currentSeconds();
+        printf("row-spliting matmul:    %.4f ms\n", 1000.f * (end - start));
 
-    free(h_C_dense);
-    cudaFree(A_dense);
-    cudaFree(B_dense);
-    cudaFree(C_dense);
+        float *h_C_dense = (float*)malloc(m * n * sizeof(float));
+        cudaMemcpy(h_C_dense, C_dense, m * n * sizeof(float), cudaMemcpyDeviceToHost);
+
+        free(h_C_dense);
+        cudaFree(A_dense);
+        cudaFree(B_dense);
+        cudaFree(C_dense);
+    }
 }
+

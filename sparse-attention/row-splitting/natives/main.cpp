@@ -7,7 +7,7 @@
 #include <getopt.h>
 #include <string>
 #include "row_split.h"
-#include "../utils/cycleTimer.h"
+#include "../../utils/cycleTimer.h"
 #define MAX_SEQ_LEN 512
 #define MAX_BATCH_SIZE 32
 
